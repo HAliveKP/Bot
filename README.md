@@ -20,7 +20,7 @@
 
 | Feature | Description |
 |---------|-------------|
-| 🗣️ **Natural Language Commands** | `!restructure for ST4003CMD exam this Friday` — the bot plans and executes |
+| 🗣️ **Natural Language Commands** | `!restructure for  exam this Friday` — the bot plans and executes |
 | 🧠 **Hermes Planner AI** | Context-aware strategy engine that understands exams, projects, team dynamics |
 | 🔄 **Persistent Memory** | Redis-backed context store — remembers decisions, study plans, projects across restarts |
 | 🛡️ **Safety First** | Confirmation gates, protected roles/channels, dry-run previews, action limits |
@@ -152,7 +152,7 @@ docker-compose logs -f discord-bot
 In any allowed Discord channel or DM:
 
 ```
-!restructure this server for my ST4003CMD exam on Friday
+!restructure this server for my  exam on Friday
 ```
 
 ---
@@ -362,7 +362,7 @@ Expected results:
 | `!make a role called Test-Role with color #ff0000` | Role created, bot confirms |
 | `!give @User Test-Role` | Role assigned to user |
 | `!delete test-channel` | ⚠️ Destructive action — requires confirmation |
-| `!restructure for ST4003CMD exam` | Creates exam cram channels, voice rooms, schedules |
+| `!restructure for  exam` | Creates exam cram channels, voice rooms, schedules |
 
 ---
 
