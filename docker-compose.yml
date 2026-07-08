@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+  # ─── Redis — Persistent Context Store ───────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: hermes-redis
+    ports: ["6379:6379"]
+    volumes: ["redis_data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── Hermes Planner — AI Strategy Engine ─────────────────────────────────
+  hermes-planner:
+    build: ./hermes-planner
+    container_name: hermes-planner
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-anthropic/claude-sonnet-4-20250514}
+      - LOG_LEVEL=INFO
+    ports: ["8000:8000"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─── Discord Bot — Command Executor ───────────────────────────────────────
+  discord-bot:
+    build: ./discord-bot
+    container_name: discord-admin-bot
+    env_file: .env
+    environment:
+      - HERMES_PLANNER_URL=http://hermes-planner:8000
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=INFO
+    depends_on:
+      hermes-planner:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis_data:
