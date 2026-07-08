@@ -1,0 +1,30 @@
+bot:
+  prefix: "!"
+  status: "🛠️ Hermes-linked admin"
+  command_cooldown: 5
+
+llm:
+  temperature: 0.1
+  max_tokens: 4000
+  timeout: 30
+
+execution:
+  confirm_destructive: true
+  max_actions_per_prompt: 20
+  dry_run_default: false
+
+safety:
+  protected_roles: ["👑 Owner", "🛡️ Admin"]
+  protected_channels: ["#rules-and-info", "#announcements"]
+  require_confirmation_for:
+    - delete_channel
+    - delete_category
+    - delete_role
+    - modify_permissions
+    - ban_member
+    - kick_member
+
+hermes:
+  planner_url: "http://hermes-planner:8000"
+  timeout: 30
+  fallback_to_local: true
