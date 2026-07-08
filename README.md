@@ -420,7 +420,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 <div align="center">
 
-**Built with ❤️ for friends, study groups, and awesome projects.**
+
 
 *[HAliveKP/Bot](https://github.com/HAliveKP/Bot)*
 
