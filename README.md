@@ -104,7 +104,7 @@ GUILD_ID=123456789012345678
 ADMIN_USER_IDS=123456789012345678,987654321098765432
 
 # ── Optional (personalises planning) ─────────────────────────────────
-HERMES_MODULE=ST4003CMD
+HERMES_MODULE=
 HERMES_EXAM_DATE=2026-07-10T19:00:00
 HERMES_STUDY_HOURS=14
 HERMES_TIMEZONE=UTC
@@ -162,7 +162,7 @@ In any allowed Discord channel or DM:
 ### 🎯 Exam Cram
 
 ```
-!restructure server for ST4003CMD exam this Friday
+!restructure server for exam this Friday
 !create ST4003 study channels with pomodoro voice rooms
 !set up a 3-day cram schedule with day-1 day-2 day-3 channels
 ```
