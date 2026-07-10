@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 import redis
 
-from .models import ServerState
+from models import ServerState
 
 logger = logging.getLogger(__name__)
 

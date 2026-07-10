@@ -63,7 +63,7 @@ class LocalLLMClient:
         self.config = config
         self.api_key = os.getenv("OPENROUTER_API_KEY", "")
         self.model = os.getenv(
-            "OPENROUTER_MODEL", "anthropic/claude-sonnet-4-20250514"
+            "OPENROUTER_MODEL", "nvidia/nemotron-3-ultra-free"
         )
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
         self.system_prompt = self._load_system_prompt()
@@ -88,7 +88,7 @@ class LocalLLMClient:
             "model": self.model,
             "messages": messages,
             "temperature": self.config.llm.temperature,
-            "max_tokens": self.config.llm.max_tokens,
+            "max_tokens": 8000,
             "response_format": {"type": "json_object"},
         }
 
@@ -112,4 +112,23 @@ class LocalLLMClient:
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
 
-        return LLMResponse(**json.loads(content))
+        # Robust JSON parsing — progressive truncation repair
+        parsed = None
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            start = content.find("{")
+            end = content.rfind("}")
+            if start >= 0 and end > start:
+                for cut in range(end, start, -1):
+                    if content[cut] == "}":
+                        try:
+                            parsed = json.loads(content[start:cut+1])
+                            break
+                        except json.JSONDecodeError:
+                            continue
+            if parsed is None:
+                logger.error("Failed to parse LLM response as JSON. Length=%d", len(content))
+                raise
+
+        return LLMResponse(**parsed)

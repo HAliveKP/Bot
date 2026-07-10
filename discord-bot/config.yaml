@@ -10,7 +10,7 @@ llm:
 
 execution:
   confirm_destructive: true
-  max_actions_per_prompt: 20
+  max_actions_per_prompt: 30
   dry_run_default: false
 
 safety:
@@ -26,5 +26,5 @@ safety:
 
 hermes:
   planner_url: "http://hermes-planner:8000"
-  timeout: 30
+  timeout: 60
   fallback_to_local: true

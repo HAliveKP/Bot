@@ -21,8 +21,10 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
 )
 
-from .models import PlanRequest, PlanResponse
-from .planner import HermesPlanner
+logger = logging.getLogger(__name__)
+
+from models import PlanRequest, PlanResponse
+from planner import HermesPlanner
 
 app = FastAPI(
     title="Hermes Planner",

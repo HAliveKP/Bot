@@ -15,8 +15,8 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from .context_store import ContextStore
-from .models import PlanRequest, PlanResponse
+from context_store import ContextStore
+from models import PlanRequest, PlanResponse
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class HermesPlanner:
     def __init__(self) -> None:
         self.api_key = os.getenv("OPENROUTER_API_KEY", "")
         self.model = os.getenv(
-            "OPENROUTER_MODEL", "anthropic/claude-sonnet-4-20250514"
+            "OPENROUTER_MODEL", "nvidia/nemotron-3-ultra-free"
         )
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
         self.system_prompt = self._load_system_prompt()
@@ -69,7 +69,7 @@ class HermesPlanner:
             "model": self.model,
             "messages": messages,
             "temperature": 0.1,
-            "max_tokens": 4000,
+            "max_tokens": 8000,
             "response_format": {"type": "json_object"},
         }
 
@@ -93,7 +93,32 @@ class HermesPlanner:
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
 
-        plan_response = PlanResponse(**json.loads(content))
+        # Robust JSON parsing — try multiple repair strategies
+        plan_data = None
+        try:
+            plan_data = json.loads(content)
+        except json.JSONDecodeError:
+            # Strategy 1: progressive truncation — find outermost { }
+            start = content.find("{")
+            end = content.rfind("}")
+            if start >= 0 and end > start:
+                # Try progressively shorter content by moving end brace backward
+                for cut in range(end, start, -1):
+                    if content[cut] == "}":
+                        try:
+                            plan_data = json.loads(content[start:cut+1])
+                            break
+                        except json.JSONDecodeError:
+                            continue
+            # Strategy 2: if all repairs fail, raise a clear error
+            if plan_data is None:
+                raise json.JSONDecodeError(
+                    f"Could not parse AI response as JSON even after repair. "
+                    f"Content length={len(content)}. First 500 chars: {content[:500]}",
+                    content, 0
+                )
+
+        plan_response = PlanResponse(**plan_data)
 
         # Persist decision for future context
         decision = {

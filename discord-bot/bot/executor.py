@@ -5,12 +5,12 @@ Orchestrates dry-run previews, safe execution with error isolation,
 and result formatting for Discord message delivery.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Union
 
 import discord
 
 from .actions import ChannelActions, RoleActions
-from .models import Action, ActionType, SafetyConfig
+from .models import Action, ActionType, PermissionOverwrite, SafetyConfig
 from .utils import chunk_text
 
 
@@ -115,6 +115,40 @@ class ActionExecutor:
             if self._is_protected_role(params.get("name", "")):
                 raise ValueError(f"Protected role: {params.get('name')}")
 
+    # ── Permission Sanitizer ──────────────────────────────────────────────
+
+    @staticmethod
+    def _sanitize_permissions(
+        perms: Any,
+    ) -> Optional[List[PermissionOverwrite]]:
+        """Convert raw JSON permissions from AI into PermissionOverwrite objects.
+
+        Handles multiple formats the AI might return:
+        - List[PermissionOverwrite] objects → pass through
+        - List[dict] → convert to PermissionOverwrite
+        - Dict → convert single overwrite or return None
+        - None/empty → return None
+        """
+        if not perms:
+            return None
+        if isinstance(perms, list):
+            result = []
+            for item in perms:
+                if isinstance(item, PermissionOverwrite):
+                    result.append(item)
+                elif isinstance(item, dict):
+                    result.append(PermissionOverwrite(**item))
+                else:
+                    return None
+            return result
+        if isinstance(perms, dict):
+            # Maybe it's a single overwrite dict
+            if "target_type" in perms:
+                return [PermissionOverwrite(**perms)]
+            # Unknown dict format — discard
+            return None
+        return None
+
     # ── Single Action Dispatch ──────────────────────────────────────────────
 
     async def _execute_one(self, action: Action) -> str:
@@ -142,7 +176,7 @@ class ActionExecutor:
                 p.get("topic", ""),
                 p.get("slowmode", 0),
                 p.get("nsfw", False),
-                p.get("permissions"),
+                self._sanitize_permissions(p.get("permissions")),
             )
             return f"#{ch.name} in {p['category']}"
 
@@ -176,7 +210,7 @@ class ActionExecutor:
                 p.get("bitrate", 64000),
                 p.get("user_limit", 0),
                 p.get("video_quality_mode", "auto"),
-                p.get("permissions"),
+                self._sanitize_permissions(p.get("permissions")),
             )
             return f"Voice: {vc.name}"
 

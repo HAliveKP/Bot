@@ -60,7 +60,7 @@ class Action(BaseModel):
 
 class LLMResponse(BaseModel):
     """Structured response from the planner (Hermes or local fallback)."""
-    actions: List[Action] = Field(max_length=20)
+    actions: List[Action] = Field(max_length=50)
     explanation: str = ""
     clarification_needed: bool = False
     clarification_question: Optional[str] = None

@@ -22,7 +22,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-anthropic/claude-sonnet-4-20250514}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
       - LOG_LEVEL=INFO
     ports: ["8000:8000"]
     depends_on:

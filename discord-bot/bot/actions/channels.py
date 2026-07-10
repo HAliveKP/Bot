@@ -118,15 +118,19 @@ class ChannelActions:
             raise ValueError(f"Channel #{name} already exists in {category}")
 
         overwrites = self._build_overwrites(permissions) if permissions else None
-        return await self.guild.create_text_channel(
-            name=name,
-            category=cat,
-            topic=topic,
-            slowmode_delay=slowmode,
-            nsfw=nsfw,
-            overwrites=overwrites,
-            reason="Admin bot action",
-        )
+        # discord.py 2.7+: pass overwrites only when we have them, otherwise omit
+        # to avoid TypeError when overwrites=None hits the isinstance(overwrites, Mapping) check
+        kwargs = {
+            "name": name,
+            "category": cat,
+            "topic": topic,
+            "slowmode_delay": slowmode,
+            "nsfw": nsfw,
+            "reason": "Admin bot action",
+        }
+        if overwrites:
+            kwargs["overwrites"] = overwrites
+        return await self.guild.create_text_channel(**kwargs)
 
     async def delete_text_channel(
         self, name: str, category: Optional[str] = None
@@ -221,21 +225,24 @@ class ChannelActions:
             raise ValueError(f"Voice channel '{name}' already exists in {category}")
 
         overwrites = self._build_overwrites(permissions) if permissions else None
+        # discord.py 2.7+: pass overwrites only when we have them, otherwise omit
         vq = (
             discord.VideoQualityMode.full
             if video_quality_mode == "full"
             else discord.VideoQualityMode.auto
         )
 
-        return await self.guild.create_voice_channel(
-            name=name,
-            category=cat,
-            bitrate=bitrate,
-            user_limit=user_limit,
-            video_quality_mode=vq,
-            overwrites=overwrites,
-            reason="Admin bot action",
-        )
+        kwargs = {
+            "name": name,
+            "category": cat,
+            "bitrate": bitrate,
+            "user_limit": user_limit,
+            "video_quality_mode": vq,
+            "reason": "Admin bot action",
+        }
+        if overwrites:
+            kwargs["overwrites"] = overwrites
+        return await self.guild.create_voice_channel(**kwargs)
 
     async def delete_voice_channel(
         self, name: str, category: Optional[str] = None

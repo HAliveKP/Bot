@@ -152,15 +152,35 @@ class AdminBot(commands.Bot):
     # ── Lifecycle ───────────────────────────────────────────────────────────
 
     async def on_ready(self) -> None:
-        logger.info("Logged in as %s (ID: %s)", self.user, self.user.id)
-        await self.change_presence(
-            activity=discord.Game(name=self.config.bot.status)
-        )
-        try:
-            synced = await self.tree.sync()
-            logger.info("Synced %d slash command(s)", len(synced))
-        except Exception as exc:
-            logger.error("Slash command sync failed: %s", exc)
+            logger.info("Logged in as %s (ID: %s)", self.user, self.user.id)
+            await self.change_presence(
+                activity=discord.Game(name=self.config.bot.status)
+            )
+            try:
+                # Register slash command
+                @self.tree.command(
+                    name="admin",
+                    description="Execute a natural-language admin command for this server.",
+                )
+                @app_commands.describe(prompt='e.g. "Create a study category with schedule and help channels"')
+                async def admin_slash(interaction: discord.Interaction, prompt: str) -> None:
+                    await interaction.response.defer(ephemeral=True)
+
+                    admin_ids = [
+                        int(x) for x in os.getenv("ADMIN_USER_IDS", "").split(",") if x.strip()
+                    ]
+                    if interaction.user.id not in admin_ids:
+                        await interaction.followup.send("❌ Not authorized.")
+                        return
+
+                    await interaction.followup.send(
+                        "Slash command handler — use `!command` prefix for now."
+                    )
+
+                synced = await self.tree.sync()
+                logger.info("Synced %d slash command(s)", len(synced))
+            except Exception as exc:
+                logger.error("Slash command sync failed: %s", exc)
 
     async def on_message(self, message: discord.Message) -> None:
         if message.author.bot:
@@ -337,11 +357,7 @@ class AdminBot(commands.Bot):
 
 # ── Slash Command ────────────────────────────────────────────────────────────
 
-@AdminBot.tree.command(
-    name="admin",
-    description="Execute a natural-language admin command for this server.",
-)
-@app_commands.describe(prompt='e.g. "Create a study category with schedule and help channels"')
+# Register slash command in on_ready instead (tree is instance-only)
 async def admin_slash(interaction: discord.Interaction, prompt: str) -> None:
     await interaction.response.defer(ephemeral=True)
 
