@@ -93,30 +93,120 @@ class HermesPlanner:
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
 
-        # Robust JSON parsing — try multiple repair strategies
-        plan_data = None
-        try:
-            plan_data = json.loads(content)
-        except json.JSONDecodeError:
-            # Strategy 1: progressive truncation — find outermost { }
-            start = content.find("{")
-            end = content.rfind("}")
-            if start >= 0 and end > start:
-                # Try progressively shorter content by moving end brace backward
-                for cut in range(end, start, -1):
-                    if content[cut] == "}":
-                        try:
-                            plan_data = json.loads(content[start:cut+1])
-                            break
-                        except json.JSONDecodeError:
-                            continue
-            # Strategy 2: if all repairs fail, raise a clear error
-            if plan_data is None:
-                raise json.JSONDecodeError(
-                    f"Could not parse AI response as JSON even after repair. "
-                    f"Content length={len(content)}. First 500 chars: {content[:500]}",
-                    content, 0
-                )
+        # ── Repair truncated JSON ────────────────────────────────────────
+        import re
+
+        def _repair_json(text: str) -> dict:
+            """Try to repair truncated JSON from an AI response.
+            
+            Handles: unterminated strings, unclosed braces/brackets,
+            trailing commas, and progressive truncation.
+            """
+            # Try direct parse first
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                pass
+
+            start = text.find("{")
+            if start < 0:
+                raise json.JSONDecodeError("No JSON object found in response", text, 0)
+
+            # Strategy 1: close unterminated strings + brace structure
+            repaired = text
+            in_string = False
+            escape = False
+            brace_depth = 0     # { }
+            bracket_depth = 0   # [ ]
+            for ch in repaired:
+                if escape:
+                    escape = False
+                    continue
+                if ch == "\\" and in_string:
+                    escape = True
+                    continue
+                if ch == '"':
+                    in_string = not in_string
+                    continue
+                if not in_string:
+                    if ch == "{":
+                        brace_depth += 1
+                    elif ch == "}":
+                        brace_depth -= 1
+                    elif ch == "[":
+                        bracket_depth += 1
+                    elif ch == "]":
+                        bracket_depth -= 1
+
+            if in_string:
+                repaired += '"'
+            if bracket_depth > 0:
+                repaired += "]" * bracket_depth
+            if brace_depth > 0:
+                repaired += "}" * brace_depth
+
+            try:
+                return json.loads(repaired)
+            except json.JSONDecodeError:
+                pass
+
+            # Strategy 2: progressive truncation — try each '}' right-to-left
+            end_positions = [
+                i for i in range(len(repaired) - 1, start - 1, -1)
+                if repaired[i] == "}"
+            ]
+            for end in end_positions:
+                candidate = repaired[start:end+1]
+                # Strip trailing comma (invalid JSON before closing)
+                candidate = re.sub(r",\s*$", "", candidate)
+
+                # Count unmatched braces in candidate and close them
+                in_str = False
+                esc = False
+                ob, obr = 0, 0
+                for ch in candidate:
+                    if esc:
+                        esc = False
+                        continue
+                    if ch == "\\" and in_str:
+                        esc = True
+                        continue
+                    if ch == '"':
+                        in_str = not in_str
+                        continue
+                    if not in_str:
+                        if ch == "{":
+                            ob += 1
+                        elif ch == "}":
+                            ob -= 1
+                        elif ch == "[":
+                            obr += 1
+                        elif ch == "]":
+                            obr -= 1
+                if ob > 0:
+                    candidate += "}" * ob
+                if obr > 0:
+                    candidate += "]" * obr
+
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    continue
+
+            raise json.JSONDecodeError(
+                f"Could not repair JSON. Length={len(repaired)}. "
+                f"First 300: {repaired[:300]}",
+                repaired, 0,
+            )
+
+        plan_data = _repair_json(content)
+
+        # ── Cap actions to max allowed ───────────────────────────────────
+        field_info = PlanResponse.model_fields["actions"]
+        max_actions = getattr(field_info, "max_length", None)
+        if max_actions and isinstance(plan_data, dict) and "actions" in plan_data:
+            if len(plan_data["actions"]) > max_actions:
+                plan_data["actions"] = plan_data["actions"][:max_actions]
 
         plan_response = PlanResponse(**plan_data)
 

@@ -4,6 +4,7 @@ LLM clients — primary Hermes Planner (HTTP) + fallback local OpenRouter.
 
 import json
 import logging
+import re
 import os
 
 import httpx
@@ -112,23 +113,89 @@ class LocalLLMClient:
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
 
-        # Robust JSON parsing — progressive truncation repair
-        parsed = None
-        try:
-            parsed = json.loads(content)
-        except json.JSONDecodeError:
-            start = content.find("{")
-            end = content.rfind("}")
-            if start >= 0 and end > start:
-                for cut in range(end, start, -1):
-                    if content[cut] == "}":
-                        try:
-                            parsed = json.loads(content[start:cut+1])
-                            break
-                        except json.JSONDecodeError:
-                            continue
-            if parsed is None:
-                logger.error("Failed to parse LLM response as JSON. Length=%d", len(content))
-                raise
+        # ── Repair truncated JSON ────────────────────────────────────────
+        def _repair_json(text: str) -> dict:
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                pass
+
+            start = text.find("{")
+            if start < 0:
+                raise json.JSONDecodeError("No JSON object", text, 0)
+
+            # Strategy 1: close unterminated strings + brace structure
+            repaired = text
+            in_string = False
+            escape = False
+            brace_depth = 0
+            bracket_depth = 0
+            for ch in repaired:
+                if escape:
+                    escape = False
+                    continue
+                if ch == "\\" and in_string:
+                    escape = True
+                    continue
+                if ch == '"':
+                    in_string = not in_string
+                    continue
+                if not in_string:
+                    if ch == "{": brace_depth += 1
+                    elif ch == "}": brace_depth -= 1
+                    elif ch == "[": bracket_depth += 1
+                    elif ch == "]": bracket_depth -= 1
+
+            if in_string:
+                repaired += '"'
+            if bracket_depth > 0:
+                repaired += "]" * bracket_depth
+            if brace_depth > 0:
+                repaired += "}" * brace_depth
+
+            try:
+                return json.loads(repaired)
+            except json.JSONDecodeError:
+                pass
+
+            # Strategy 2: progressive truncation with auto-close
+            end_positions = [
+                i for i in range(len(repaired) - 1, start - 1, -1)
+                if repaired[i] == "}"
+            ]
+            for end in end_positions:
+                candidate = repaired[start:end+1]
+                candidate = re.sub(r",\s*$", "", candidate)
+
+                in_str = False
+                esc = False
+                ob, obr = 0, 0
+                for ch in candidate:
+                    if esc: esc = False; continue
+                    if ch == "\\" and in_str: esc = True; continue
+                    if ch == '"': in_str = not in_str; continue
+                    if not in_str:
+                        if ch == "{": ob += 1
+                        elif ch == "}": ob -= 1
+                        elif ch == "[": obr += 1
+                        elif ch == "]": obr -= 1
+                if ob > 0: candidate += "}" * ob
+                if obr > 0: candidate += "]" * obr
+
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    continue
+
+            raise json.JSONDecodeError("Could not repair JSON", text, 0)
+
+        parsed = _repair_json(content)
+
+        # ── Cap actions to max allowed ───────────────────────────────────
+        field_info = LLMResponse.model_fields["actions"]
+        max_len = getattr(field_info, "max_length", None)
+        if max_len and isinstance(parsed, dict) and "actions" in parsed:
+            if len(parsed["actions"]) > max_len:
+                parsed["actions"] = parsed["actions"][:max_len]
 
         return LLMResponse(**parsed)

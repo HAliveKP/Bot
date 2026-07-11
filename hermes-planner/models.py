@@ -58,7 +58,7 @@ class PlanRequest(BaseModel):
 
 class PlanResponse(BaseModel):
     """Structured plan returned to the Discord bot."""
-    actions: List[Action] = Field(max_length=50)
+    actions: List[Action] = Field(max_length=100)
     explanation: str = ""
     clarification_needed: bool = False
     clarification_question: Optional[str] = None
